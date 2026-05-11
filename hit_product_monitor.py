@@ -91,16 +91,23 @@ div[data-testid="stMetricLabel"] { font-size: 11px !important; }
 # ── BigQuery 클라이언트 ───────────────────────────────────────────────────────
 @st.cache_resource
 def get_client():
+    if "gcp_service_account" in st.secrets:
+        creds = service_account.Credentials.from_service_account_info(
+            st.secrets["gcp_service_account"],
+            scopes=["https://www.googleapis.com/auth/cloud-platform"],
+        )
+        return bigquery.Client(project="damoa-mart", credentials=creds)
+    # 로컬 개발환경 (ADC)
     try:
-        if "gcp_service_account" in st.secrets:
-            creds = service_account.Credentials.from_service_account_info(
-                st.secrets["gcp_service_account"],
-                scopes=["https://www.googleapis.com/auth/cloud-platform"],
-            )
-            return bigquery.Client(project="damoa-mart", credentials=creds)
-    except Exception:
-        pass
-    return bigquery.Client(project="damoa-mart")
+        return bigquery.Client(project="damoa-mart")
+    except Exception as e:
+        st.error(
+            "🔑 **BigQuery 인증 정보가 없습니다.**\n\n"
+            "Streamlit Cloud 배포 시 앱 설정 → Secrets에 GCP 서비스 계정 JSON을 추가하세요.\n\n"
+            "```toml\n[gcp_service_account]\ntype = \"service_account\"\nproject_id = \"damoa-mart\"\n"
+            "private_key_id = \"...\"\nprivate_key = \"...\"\nclient_email = \"...\"\n```"
+        )
+        st.stop()
 
 
 def run_query(sql: str) -> pd.DataFrame:
