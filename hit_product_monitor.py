@@ -118,12 +118,11 @@ SEASON_LABEL_MAP: dict[str, str] = {
 
 
 # ── 데이터 로드 ───────────────────────────────────────────────────────────────
-@st.cache_data(ttl=300)  # 5분 캐시
-def load_monitor_data(brand_filter: str, season: str) -> pd.DataFrame:
-    """ls_hit_rate 뷰 직접 조회 + pb_new_product_check LEFT JOIN (주차별 GMV)"""
-    season_label = SEASON_LABEL_MAP.get(season, "26SS")
-    brand_clause = f"AND lr.brand_name = '{brand_filter}'" if brand_filter != "전체 PB" else ""
-    sql = f"""
+HIT_RATE_SNAPSHOT = "`damoa-fb351.pb1.ls_hit_rate_snapshot`"
+HIT_RATE_VIEW     = "`damoa-fb351.pb1.ls_hit_rate`"
+
+def _build_sql(source: str, season_label: str, season: str, brand_clause: str) -> str:
+    return f"""
     SELECT
       lr.brand_name,
       lr.mall_product_code,
@@ -147,7 +146,7 @@ def load_monitor_data(brand_filter: str, season: str) -> pd.DataFrame:
         pnpc.product_detail_link,
         CONCAT('https://web.queenit.kr/product/', lr.product_id)
       )                                         AS product_detail_link
-    FROM `damoa-fb351.pb1.ls_hit_rate` lr
+    FROM {source} lr
     LEFT JOIN `damoa-mart.pb1.pb_new_product_check` pnpc
       ON lr.mall_product_code = pnpc.mall_product_code
       AND pnpc.season_cohort = '{season}'
@@ -157,8 +156,19 @@ def load_monitor_data(brand_filter: str, season: str) -> pd.DataFrame:
       {brand_clause}
     ORDER BY lr.gmv_season_total DESC NULLS LAST
     """
-    df = run_query(sql)
-    return df
+
+@st.cache_data(ttl=3600)  # 1시간 캐시 (스냅샷 테이블 기준)
+def load_monitor_data(brand_filter: str, season: str) -> tuple[pd.DataFrame, str]:
+    """스냅샷 테이블 우선 조회, 없으면 뷰 fallback"""
+    season_label = SEASON_LABEL_MAP.get(season, "26SS")
+    brand_clause = f"AND lr.brand_name = '{brand_filter}'" if brand_filter != "전체 PB" else ""
+
+    try:
+        df = run_query(_build_sql(HIT_RATE_SNAPSHOT, season_label, season, brand_clause))
+        return df, "snapshot"
+    except Exception:
+        df = run_query(_build_sql(HIT_RATE_VIEW, season_label, season, brand_clause))
+        return df, "view"
 
 
 def make_summary(df: pd.DataFrame) -> pd.DataFrame:
@@ -241,7 +251,10 @@ st.markdown(f"## 🎯 적중상품 임계값 모니터 — {selected_brand} ({se
 
 # 데이터 로드
 with st.spinner("BigQuery 조회 중..."):
-    df = load_monitor_data(selected_brand, selected_season)
+    df, data_source = load_monitor_data(selected_brand, selected_season)
+
+if data_source == "view":
+    st.caption("⚠️ 스냅샷 테이블 미설정 — 뷰 직접 조회 중 (느림)")
 
 if df.empty:
     st.warning("해당 조건의 상품 데이터가 없습니다.")
