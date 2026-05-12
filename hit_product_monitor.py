@@ -96,7 +96,8 @@ def get_client():
             st.secrets["gcp_service_account"],
             scopes=["https://www.googleapis.com/auth/cloud-platform"],
         )
-        return bigquery.Client(project="damoa-mart", credentials=creds)
+        billing_project = st.secrets["gcp_service_account"].get("project_id", "damoa-mart")
+        return bigquery.Client(project=billing_project, credentials=creds)
     # 로컬 개발환경 (ADC)
     try:
         return bigquery.Client(project="damoa-mart")
