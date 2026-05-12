@@ -93,7 +93,18 @@ div[data-testid="stMetricLabel"] { font-size: 11px !important; }
 def get_client():
     if "gcp_service_account" in st.secrets:
         secret_info = dict(st.secrets["gcp_service_account"])
-        secret_info["private_key"] = secret_info["private_key"].replace("\\n", "\n")
+        pk = secret_info.get("private_key", "")
+        pk_fixed = pk.replace("\\n", "\n")
+        # 진단 정보 (키 내용 미노출)
+        st.info(
+            f"🔍 **키 진단**\n"
+            f"- 길이: {len(pk)}자\n"
+            f"- BEGIN 포함: {'-----BEGIN PRIVATE KEY-----' in pk}\n"
+            f"- END 포함: {'-----END PRIVATE KEY-----' in pk}\n"
+            f"- 실제 줄바꿈 포함: {chr(10) in pk}\n"
+            f"- \\\\n 문자 포함: {'\\\\n' in pk}"
+        )
+        secret_info["private_key"] = pk_fixed
         creds = service_account.Credentials.from_service_account_info(
             secret_info,
             scopes=["https://www.googleapis.com/auth/cloud-platform"],
