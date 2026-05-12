@@ -92,11 +92,13 @@ div[data-testid="stMetricLabel"] { font-size: 11px !important; }
 @st.cache_resource
 def get_client():
     if "gcp_service_account" in st.secrets:
+        secret_info = dict(st.secrets["gcp_service_account"])
+        secret_info["private_key"] = secret_info["private_key"].replace("\\n", "\n")
         creds = service_account.Credentials.from_service_account_info(
-            st.secrets["gcp_service_account"],
+            secret_info,
             scopes=["https://www.googleapis.com/auth/cloud-platform"],
         )
-        billing_project = st.secrets["gcp_service_account"].get("project_id", "damoa-mart")
+        billing_project = secret_info.get("project_id", "damoa-mart")
         return bigquery.Client(project=billing_project, credentials=creds)
     # 로컬 개발환경 (ADC)
     try:
