@@ -93,35 +93,26 @@ div[data-testid="stMetricLabel"] { font-size: 11px !important; }
 def get_client():
     if "gcp_service_account" in st.secrets:
         secret_info = dict(st.secrets["gcp_service_account"])
-        pk = secret_info.get("private_key", "")
-        pk_fixed = pk.replace("\\n", "\n")
-        # 진단 정보 (키 내용 미노출)
-        st.info(
-            f"🔍 **키 진단**\n"
-            f"- 길이: {len(pk)}자\n"
-            f"- BEGIN 포함: {'-----BEGIN PRIVATE KEY-----' in pk}\n"
-            f"- END 포함: {'-----END PRIVATE KEY-----' in pk}\n"
-            f"- 실제 줄바꿈 포함: {chr(10) in pk}\n"
-            f"- \\\\n 문자 포함: {'\\\\n' in pk}"
-        )
-        secret_info["private_key"] = pk_fixed
+        secret_info["private_key"] = secret_info["private_key"].replace("\\n", "\n")
         creds = service_account.Credentials.from_service_account_info(
             secret_info,
             scopes=["https://www.googleapis.com/auth/cloud-platform"],
         )
         billing_project = secret_info.get("project_id", "damoa-mart")
         return bigquery.Client(project=billing_project, credentials=creds)
-    # 로컬 개발환경 (ADC)
-    try:
-        return bigquery.Client(project="damoa-mart")
-    except Exception as e:
-        st.error(
-            "🔑 **BigQuery 인증 정보가 없습니다.**\n\n"
-            "Streamlit Cloud 배포 시 앱 설정 → Secrets에 GCP 서비스 계정 JSON을 추가하세요.\n\n"
-            "```toml\n[gcp_service_account]\ntype = \"service_account\"\nproject_id = \"damoa-mart\"\n"
-            "private_key_id = \"...\"\nprivate_key = \"...\"\nclient_email = \"...\"\n```"
+    if "gcp_user_credentials" in st.secrets:
+        from google.oauth2.credentials import Credentials
+        s = st.secrets["gcp_user_credentials"]
+        creds = Credentials(
+            token=None,
+            refresh_token=s["refresh_token"],
+            client_id=s["client_id"],
+            client_secret=s["client_secret"],
+            token_uri="https://oauth2.googleapis.com/token",
         )
-        st.stop()
+        return bigquery.Client(project="damoa-mart", credentials=creds)
+    # 로컬 개발환경 (ADC)
+    return bigquery.Client(project="damoa-mart")
 
 
 def run_query(sql: str) -> pd.DataFrame:
