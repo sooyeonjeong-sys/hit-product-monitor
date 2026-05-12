@@ -110,7 +110,7 @@ def get_client():
             client_secret=s["client_secret"],
             token_uri="https://oauth2.googleapis.com/token",
         )
-        return bigquery.Client(project="damoa-mart", credentials=creds)
+        return bigquery.Client(project="damoa-fb351", credentials=creds)
     # 로컬 개발환경 (ADC)
     return bigquery.Client(project="damoa-mart")
 
